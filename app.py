@@ -1,5 +1,7 @@
 import streamlit as st
 
+import pandas as pd
+
 from database import (
     create_database,
     save_review,
@@ -28,20 +30,56 @@ st.set_page_config(
     layout="wide"
 )
 
-# Sidebar navigation
-st.sidebar.title("🛡️ AI Security Assistant")
+
+# Lesson 10: Modern sidebar styling
+st.markdown(
+    """
+    <style>
+    [data-testid="stSidebar"] {
+        background-color: #14243B;
+    }
+
+    [data-testid="stSidebar"] * {
+        color: #F3F7FC;
+    }
+
+    [data-testid="stSidebar"] hr {
+        border-color: #34465E;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True
+)
+
+
+# Sidebar branding
+st.sidebar.markdown("## 🛡️ AI Security Assistant")
+st.sidebar.caption("Small Business Security Center")
+st.sidebar.divider()
+
+
+
+pages = [
+    "Home",
+    "Security Alerts",
+    "Security Checker",
+    "Protection Tips",
+    "Action History",
+    "Ask Assistant"
+]
+
+if "selected_page" not in st.session_state:
+    st.session_state["selected_page"] = "Home"
 
 page = st.sidebar.radio(
-    "Navigation",
-    [
-        "Home",
-        "Security Alerts",
-        "Security Checker",
-        "Protection Tips",
-        "Action History",
-        "Ask Assistant"
-    ]
+    "MAIN MENU",
+    pages,
+    index=pages.index(st.session_state["selected_page"]),
+    key="main_navigation"
 )
+
+st.session_state["selected_page"] = page
+
 
 
 # Application heading
@@ -57,24 +95,256 @@ if page == "Home":
         "See what's happening with your business security."
     )
 
+
+    # Get saved security information
+    detected_alerts = get_detected_alerts()
+    reviews = get_reviews()
+
+    # Calculate dashboard numbers
+    detected_count = len(detected_alerts)
+    reviewed_count = len(reviews)
+
+    # Three original example alerts plus detected alerts
+    total_count = 3 + detected_count
+
+
+    # Create three colored dashboard cards
     col1, col2, col3 = st.columns(3)
 
     with col1:
-        st.metric("Needs Attention", 1)
+        st.markdown(
+            f"""
+            <div style="background-color:#FDEBEC;
+                        padding:24px;
+                        border-radius:14px;
+                        border-left:5px solid #DC3545;">
+                <div style="color:#A52834;font-size:16px;">
+                    🔴 Detected Alerts
+                </div>
+                <div style="color:#A52834;font-size:38px;
+                            font-weight:bold;">
+                    {detected_count}
+                </div>
+                <div style="color:#A52834;font-size:13px;">
+                    Saved security warnings
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
 
     with col2:
-        st.metric("Worth Reviewing", 2)
+        st.markdown(
+            f"""
+            <div style="background-color:#EAF2FF;
+                        padding:24px;
+                        border-radius:14px;
+                        border-left:5px solid #3478D4;">
+                <div style="color:#245AA0;font-size:16px;">
+                    🔵 Reviewed Alerts
+                </div>
+                <div style="color:#245AA0;font-size:38px;
+                            font-weight:bold;">
+                    {reviewed_count}
+                </div>
+                <div style="color:#245AA0;font-size:13px;">
+                    Recorded alert reviews
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
 
     with col3:
-        st.metric("Everything Looks Good", 12)
+        st.markdown(
+            f"""
+            <div style="background-color:#E9F8EF;
+                        padding:24px;
+                        border-radius:14px;
+                        border-left:5px solid #28A56A;">
+                <div style="color:#176B45;font-size:16px;">
+                    🟢 Total Alerts
+                </div>
+                <div style="color:#176B45;font-size:38px;
+                            font-weight:bold;">
+                    {total_count}
+                </div>
+                <div style="color:#176B45;font-size:13px;">
+                    Example + detected alerts
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+
+
+    # Security activity chart
+    st.subheader("📈 Security Activity")
+
+    if detected_alerts:
+        activity = pd.DataFrame(
+            detected_alerts,
+            columns=[
+                "id",
+                "title",
+                "severity",
+                "explanation",
+                "recommendation",
+                "failed_attempts",
+                "detected_at"
+            ]
+        )
+
+        activity["date"] = pd.to_datetime(
+            activity["detected_at"]
+        ).dt.date
+
+        daily_alerts = (
+            activity.groupby("date")
+            .size()
+            .reset_index(name="Alerts")
+        )
+
+        daily_alerts["date"] = pd.to_datetime(
+            daily_alerts["date"]
+        )
+
+        st.line_chart(
+            daily_alerts,
+            x="date",
+            y="Alerts"
+        )
+
+        st.caption(
+            "Warnings generated from sample sign-in activity."
+        )
+
+    else:
+        st.info(
+            "No security activity has been recorded yet."
+        )
+
+
 
     st.info(
         "These numbers are examples. "
         "Real security monitoring will be added later."
     )
 
+
+    # Show the three most recently detected warnings
     st.subheader("🔔 Recent Security Alerts")
-    st.error("Someone may be trying to guess a password.")
+
+    if detected_alerts:
+
+        # The database returns newest alerts first
+        recent_alerts = detected_alerts[:3]
+
+        for alert in recent_alerts:
+            (
+                alert_id,
+                title,
+                severity,
+                explanation,
+                recommendation,
+                failed_attempts,
+                detected_at
+            ) = alert
+
+            with st.container(border=True):
+                st.markdown(f"**🔴 {title}**")
+                st.write(f"**Priority:** {severity}")
+                st.caption(f"Detected: {detected_at}")
+                st.write(explanation)
+
+    else:
+        st.info(
+            "No warnings have been detected yet. "
+            "Use the Security Checker to test sample activity."
+        )
+
+    st.caption(
+        "These warnings are generated from sample "
+        "security activity, not live business monitoring."
+    )
+
+
+    # Alert Status Overview
+    st.subheader("🛡️ Alert Status Overview")
+
+    # Get the IDs of all saved reviews
+    reviewed_ids = {
+        review[0] for review in get_reviews()
+    }
+
+    # Count detected warnings that have been reviewed
+    detected_reviewed = sum(
+        1 for alert in detected_alerts
+        if f"detected_{alert[0]}" in reviewed_ids
+    )
+
+    # Count detected warnings that still need review
+    needs_review = detected_count - detected_reviewed
+
+    # Display the status counts
+    status_col1, status_col2 = st.columns(2)
+
+    with status_col1:
+        st.metric("🔴 Needs Review", needs_review)
+
+    with status_col2:
+        st.metric("🟢 Reviewed", detected_reviewed)
+
+    # Calculate review progress
+    if detected_count > 0:
+        review_progress = detected_reviewed / detected_count
+    else:
+        review_progress = 0
+
+    st.progress(review_progress)
+
+    st.caption(
+        f"{detected_reviewed} of {detected_count} "
+        "detected warnings have been reviewed."
+    )
+
+
+    # Quick Actions Panel
+    st.subheader("⚡ Quick Actions")
+
+    quick_col1, quick_col2 = st.columns(2)
+
+    with quick_col1:
+        if st.button(
+            "🛡️ Run Security Check",
+            use_container_width=True
+        ):
+            st.session_state["selected_page"] = "Security Checker"
+            st.rerun()
+
+        if st.button(
+            "📚 Protection Tips",
+            use_container_width=True
+        ):
+            st.session_state["selected_page"] = "Protection Tips"
+            st.rerun()
+
+    with quick_col2:
+        if st.button(
+            "🔔 View Security Alerts",
+            use_container_width=True
+        ):
+            st.session_state["selected_page"] = "Security Alerts"
+            st.rerun()
+
+        if st.button(
+            "💬 Ask Assistant",
+            use_container_width=True
+        ):
+            st.session_state["selected_page"] = "Ask Assistant"
+            st.rerun()
+
+
 
 
 # SECURITY ALERTS PAGE
@@ -123,7 +393,12 @@ elif page == "Security Alerts":
                         f"detected_{alert_id}",
                         title
                     )
+                    
+                    st.write(f"Saved review ID: detected_{alert_id}")
+
+                    
                     st.success("You have reviewed this alert.")
+
 
 
     else:
